@@ -880,38 +880,44 @@ main() {
     # Setup user and directory
     setup_user_and_dir
     
-    # Show main menu
-    while true; do
-        print_menu
-        read -p "Choose installation option (1-4): " menu_choice
-        case $menu_choice in
-            1)
-                print_status "Starting Quick Install..."
-                quick_install
-                break
-                ;;
-            2)
-                print_status "Starting Custom Install..."
-                get_configuration
-                break
-                ;;
-            3)
-                print_status "Installing dependencies only..."
-                setup_python_env
-                install_python_deps
-                print_status "Dependencies installed successfully!"
-                print_status "You can now run: python3 proxy.py"
-                exit 0
-                ;;
-            4)
-                print_status "Installation cancelled."
-                exit 0
-                ;;
-            *)
-                print_error "Invalid choice. Please select 1-4."
-                ;;
-        esac
-    done
+    # Check if running in non-interactive mode (piped from curl)
+    if [ ! -t 0 ]; then
+        print_status "Detected non-interactive mode, using Quick Install..."
+        quick_install
+    else
+        # Show main menu for interactive mode
+        while true; do
+            print_menu
+            read -p "Choose installation option (1-4): " menu_choice
+            case $menu_choice in
+                1)
+                    print_status "Starting Quick Install..."
+                    quick_install
+                    break
+                    ;;
+                2)
+                    print_status "Starting Custom Install..."
+                    get_configuration
+                    break
+                    ;;
+                3)
+                    print_status "Installing dependencies only..."
+                    setup_python_env
+                    install_python_deps
+                    print_status "Dependencies installed successfully!"
+                    print_status "You can now run: python3 proxy.py"
+                    exit 0
+                    ;;
+                4)
+                    print_status "Installation cancelled."
+                    exit 0
+                    ;;
+                *)
+                    print_error "Invalid choice. Please select 1-4."
+                    ;;
+            esac
+        done
+    fi
     
     # Setup Python environment
     setup_python_env

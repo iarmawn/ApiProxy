@@ -163,9 +163,9 @@ The proxy supports multiple API providers:
 **With curl:**
 ```bash
 curl http://localhost:5050/chat/completions \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: Bearer sk-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" \
   -H "Content-Type: application/json" \
-  -d '{"model": "gpt-3.5-turbo", "messages": [{"role": "user", "content": "Hello!"}]}'
+  -d '{"model": "gpt-4.1", "messages": [{"role": "user", "content": "Hello!"}]}'
 ```
 
 **With Python OpenAI library:**
@@ -173,12 +173,12 @@ curl http://localhost:5050/chat/completions \
 from openai import OpenAI
 
 client = OpenAI(
-    api_key="sk-O0ykoqUhiFue5sO4zzcC-C_zlQVEdMWCh7Jy4paKymd1CQsk3qgNHyTCnRN6WknRGRCpMkA",
+    api_key="sk-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
     base_url="http://localhost:5050",
 )
 
 response = client.chat.completions.create(
-    model="gpt-3.5-turbo",
+    model="gpt-4.1",
     messages=[{"role": "user", "content": "Hello!"}]
 )
 ```
