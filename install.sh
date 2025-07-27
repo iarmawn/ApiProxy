@@ -350,6 +350,22 @@ setup_user_and_dir() {
     print_status "Directory setup complete ✓"
 }
 
+# Create custom installation directory
+create_custom_dir() {
+    print_status "Creating custom installation directory..."
+    
+    # Create the custom installation directory
+    mkdir -p "$INSTALL_DIR"
+    if [[ "$OSTYPE" != "darwin"* ]]; then
+        chown "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
+    else
+        # macOS - use current user ownership
+        chown "$SERVICE_USER" "$INSTALL_DIR"
+    fi
+    
+    print_status "Custom directory created ✓"
+}
+
 # Quick install with defaults
 quick_install() {
     print_status "Using default configuration..."
@@ -1003,6 +1019,11 @@ main() {
             quick_install
             ;;
     esac
+    
+    # Create custom directory if needed
+    if [[ "$INSTALL_DIR" != "$DEFAULT_INSTALL_DIR" ]]; then
+        create_custom_dir
+    fi
     
     # Setup Python environment
     setup_python_env
