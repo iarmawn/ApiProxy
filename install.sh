@@ -691,6 +691,10 @@ def proxy(path):
         headers = dict(request.headers)
         headers.pop('Host', None)  # Remove Host header
         
+        # Handle compression properly
+        if 'Accept-Encoding' in headers:
+            headers['Accept-Encoding'] = 'identity'
+        
         # Make request to upstream
         response = requests.request(
             method=request.method,
@@ -708,11 +712,26 @@ def proxy(path):
         # Log response
         print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} INFO [{request_id}] {request.method} /{path} → {response.status_code} in {latency:.1f}ms")
         
+        # Prepare response headers
+        response_headers = dict(response.headers)
+        
+        # Remove problematic headers
+        excluded_headers = {
+            'connection', 'keep-alive', 'proxy-authenticate',
+            'proxy-authorization', 'te', 'trailers',
+            'transfer-encoding', 'upgrade', 'content-encoding'
+        }
+        
+        filtered_headers = {
+            name: value for name, value in response_headers.items()
+            if name.lower() not in excluded_headers
+        }
+        
         # Return response
         return Response(
             response.iter_content(chunk_size=8192),
             status=response.status_code,
-            headers=dict(response.headers)
+            headers=filtered_headers
         )
         
     except requests.exceptions.Timeout:
