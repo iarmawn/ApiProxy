@@ -22,14 +22,14 @@ A production-ready proxy server for multiple API services that adds request logg
 
 ### 🚀 One-Click Installation (Recommended)
 
-Install directly with curl:
+Install directly with bash:
 ```bash
-curl -sSL https://raw.githubusercontent.com/iarmawn/ApiProxy/main/install.sh | sudo bash
+bash <(curl -Ls https://raw.githubusercontent.com/iarmawn/ApiProxy/main/install.sh)
 ```
 
 Or download and run locally:
 ```bash
-curl -sSL https://raw.githubusercontent.com/iarmawn/ApiProxy/main/install.sh -o install.sh
+curl -Ls https://raw.githubusercontent.com/iarmawn/ApiProxy/main/install.sh -o install.sh
 sudo bash install.sh
 ```
 

@@ -1,16 +1,19 @@
 #!/bin/bash
 
-# OpenAI Proxy Installer
-# Usage: curl -sSL https://raw.githubusercontent.com/iarmawn/OpenAiProxy/main/install.sh | bash
+# API Proxy Installer
+# Usage: bash <(curl -Ls https://raw.githubusercontent.com/iarmawn/ApiProxy/main/install.sh)
 
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Color codes
+red='\033[0;31m'
+green='\033[0;32m'
+yellow='\033[0;33m'
+blue='\033[0;34m'
+cyan='\033[0;36m'
+plain='\033[0m'
+
+cur_dir=$(pwd)
 
 # Default values
 DEFAULT_PORT=5050
@@ -22,80 +25,111 @@ DEFAULT_WORKERS=4
 DEFAULT_INSTALL_DIR="/opt/api-proxy"
 DEFAULT_USER="api-proxy"
 
+# Check root
+[[ $EUID -ne 0 ]] && echo -e "${red}Fatal error: ${plain}Please run this script with root privilege \n " && exit 1
+
+# Check OS and set release variable
+if [[ -f /etc/os-release ]]; then
+    source /etc/os-release
+    release=$ID
+elif [[ -f /usr/lib/os-release ]]; then
+    source /usr/lib/os-release
+    release=$ID
+else
+    echo "Failed to check the system OS, please contact the author!" >&2
+    exit 1
+fi
+echo -e "${green}The OS release is: ${release}${plain}"
+
+arch() {
+    case "$(uname -m)" in
+    x86_64 | x64 | amd64) echo 'amd64' ;;
+    i*86 | x86) echo '386' ;;
+    armv8* | armv8 | arm64 | aarch64) echo 'arm64' ;;
+    armv7* | armv7 | arm) echo 'armv7' ;;
+    armv6* | armv6) echo 'armv6' ;;
+    armv5* | armv5) echo 'armv5' ;;
+    s390x) echo 's390x' ;;
+    *) echo -e "${red}Unsupported CPU architecture! ${plain}" && exit 1 ;;
+    esac
+}
+
+echo -e "${green}Arch: $(arch)${plain}"
+
 # Function to print colored output
 print_status() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+    echo -e "${green}[INFO]${plain} $1"
 }
 
 print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+    echo -e "${yellow}[WARNING]${plain} $1"
 }
 
 print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "${red}[ERROR]${plain} $1"
 }
 
 print_header() {
-    echo -e "${BLUE}================================${NC}"
-    echo -e "${BLUE}  API Proxy Installer${NC}"
-    echo -e "${BLUE}================================${NC}"
+    echo -e "${blue}================================${plain}"
+    echo -e "${blue}  API Proxy Installer${plain}"
+    echo -e "${blue}================================${plain}"
 }
 
 print_menu() {
     echo
-    echo -e "${BLUE}================================${NC}"
-    echo -e "${BLUE}  API Proxy Installation Menu${NC}"
-    echo -e "${BLUE}================================${NC}"
+    echo -e "${blue}================================${plain}"
+    echo -e "${blue}  API Proxy Installation Menu${plain}"
+    echo -e "${blue}================================${plain}"
     echo
-    echo -e "${GREEN}1. Quick Install${NC} (Recommended)"
+    echo -e "${green}1. Quick Install${plain} (Recommended)"
     echo -e "   • Uses default settings"
     echo -e "   • Port: 5050, API: OpenAI, Workers: 4"
     echo -e "   • Perfect for most users"
     echo
-    echo -e "${YELLOW}2. Custom Install${NC}"
+    echo -e "${yellow}2. Custom Install${plain}"
     echo -e "   • Choose port, API provider, workers"
     echo -e "   • Configure all options interactively"
     echo -e "   • For advanced users"
     echo
-    echo -e "${CYAN}3. Dependencies Only${NC}"
+    echo -e "${cyan}3. Dependencies Only${plain}"
     echo -e "   • Install Python dependencies only"
     echo -e "   • Manual setup required"
     echo -e "   • For developers"
     echo
-    echo -e "${RED}4. Exit${NC}"
+    echo -e "${red}4. Exit${plain}"
     echo -e "   • Cancel installation"
     echo
 }
 
 print_api_menu() {
     echo
-    echo -e "${BLUE}API Provider Selection:${NC}"
-    echo -e "1. ${GREEN}OpenAI API${NC} (ChatGPT, GPT-4, etc.)"
-    echo -e "2. ${YELLOW}GitLab API${NC} (GitLab repositories, issues, etc.)"
-    echo -e "3. ${BLUE}Custom API${NC} (Your own API endpoint)"
-    echo -e "4. ${RED}Back${NC}"
+    echo -e "${blue}API Provider Selection:${plain}"
+    echo -e "1. ${green}OpenAI API${plain} (ChatGPT, GPT-4, etc.)"
+    echo -e "2. ${yellow}GitLab API${plain} (GitLab repositories, issues, etc.)"
+    echo -e "3. ${blue}Custom API${plain} (Your own API endpoint)"
+    echo -e "4. ${red}Back${plain}"
     echo
 }
 
 print_port_menu() {
     echo
-    echo -e "${BLUE}Port Selection:${NC}"
-    echo -e "1. ${GREEN}Port 5050${NC} (Default)"
-    echo -e "2. ${YELLOW}Port 8080${NC} (Common web port)"
-    echo -e "3. ${BLUE}Port 3000${NC} (Development port)"
-    echo -e "4. ${RED}Custom Port${NC}"
-    echo -e "5. ${RED}Back${NC}"
+    echo -e "${blue}Port Selection:${plain}"
+    echo -e "1. ${green}Port 5050${plain} (Default)"
+    echo -e "2. ${yellow}Port 8080${plain} (Common web port)"
+    echo -e "3. ${blue}Port 3000${plain} (Development port)"
+    echo -e "4. ${red}Custom Port${plain}"
+    echo -e "5. ${red}Back${plain}"
     echo
 }
 
 print_worker_menu() {
     echo
-    echo -e "${BLUE}Worker Configuration:${NC}"
-    echo -e "1. ${GREEN}2 Workers${NC} (Development/Low traffic)"
-    echo -e "2. ${YELLOW}4 Workers${NC} (Recommended for most servers)"
-    echo -e "3. ${BLUE}8 Workers${NC} (High traffic servers)"
-    echo -e "4. ${RED}Custom Workers${NC}"
-    echo -e "5. ${RED}Back${NC}"
+    echo -e "${blue}Worker Configuration:${plain}"
+    echo -e "1. ${green}2 Workers${plain} (Development/Low traffic)"
+    echo -e "2. ${yellow}4 Workers${plain} (Recommended for most servers)"
+    echo -e "3. ${blue}8 Workers${plain} (High traffic servers)"
+    echo -e "4. ${red}Custom Workers${plain}"
+    echo -e "5. ${red}Back${plain}"
     echo
 }
 
@@ -159,85 +193,63 @@ validate_max_content_length() {
     fi
 }
 
-# Function to validate workers
-validate_workers() {
-    local workers=$1
-    if [[ "$workers" =~ ^[0-9]+$ ]] && [ "$workers" -ge 1 ] && [ "$workers" -le 32 ]; then
-        return 0
-    else
-        return 1
-    fi
+# Install base dependencies
+install_base() {
+    print_status "Installing system dependencies..."
+    
+    case "${release}" in
+    ubuntu | debian | armbian)
+        apt-get update && apt-get install -y -q python3-pip python3-venv curl wget
+        ;;
+    centos | rhel | almalinux | rocky | ol)
+        yum -y update && yum install -y -q python3-pip python3-venv curl wget
+        ;;
+    fedora | amzn | virtuozzo)
+        dnf -y update && dnf install -y -q python3-pip python3-venv curl wget
+        ;;
+    arch | manjaro | parch)
+        pacman -Syu && pacman -Syu --noconfirm python-pip python-virtualenv curl wget
+        ;;
+    opensuse-tumbleweed)
+        zypper refresh && zypper -q install -y python3-pip python3-venv curl wget
+        ;;
+    *)
+        apt-get update && apt install -y -q python3-pip python3-venv curl wget
+        ;;
+    esac
+    
+    print_status "System dependencies installed ✓"
 }
 
-# Check if running as root
+# Check root
 check_root() {
-    if [ "$EUID" -ne 0 ]; then
-        print_error "This script must be run as root (use sudo)"
-        print_status "Run: sudo ./install.sh"
+    if [[ $EUID -ne 0 ]]; then
+        print_error "This script must be run as root"
         exit 1
     fi
 }
 
-# Check system requirements
+# Check requirements
 check_requirements() {
     print_status "Checking system requirements..."
     
-    # Check Python
-    if ! command_exists python3; then
-        print_error "Python 3 is required but not installed"
-        print_status "The installer will attempt to install it automatically"
-    fi
-    
-    # Check pip
-    if ! command_exists pip3; then
-        print_error "pip3 is required but not installed"
-        print_status "The installer will attempt to install it automatically"
-    fi
-    
-    print_status "System requirements check complete ✓"
-}
-
-# Install system dependencies
-install_system_deps() {
-    print_status "Installing system dependencies..."
-    
-    # Detect OS and install dependencies
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS
-        print_status "Detected macOS"
-        if command_exists brew; then
-            print_status "Installing dependencies via Homebrew..."
-            brew install python3 curl
-        else
-            print_error "Homebrew not found on macOS"
-            print_status "Please install Homebrew first:"
-            print_status "/bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
-            print_status "Then run this installer again"
-            exit 1
-        fi
-    elif command_exists apt-get; then
-        # Ubuntu/Debian
-        print_status "Detected Ubuntu/Debian"
-        apt-get update
-        apt-get install -y python3-pip python3-venv curl
-        print_status "Dependencies installed via apt ✓"
-    elif command_exists yum; then
-        # CentOS/RHEL
-        print_status "Detected CentOS/RHEL"
-        yum install -y python3-pip python3-venv curl
-        print_status "Dependencies installed via yum ✓"
-    elif command_exists dnf; then
-        # Fedora
-        print_status "Detected Fedora"
-        dnf install -y python3-pip python3-venv curl
-        print_status "Dependencies installed via dnf ✓"
-    else
-        print_error "Could not detect supported package manager"
-        print_status "Supported systems: Ubuntu, Debian, CentOS, RHEL, Fedora, macOS"
+    # Check if running as root
+    if [[ $EUID -ne 0 ]]; then
+        print_error "This script must be run as root"
         exit 1
     fi
     
-    print_status "System dependencies installed ✓"
+    # Check if curl is available
+    if ! command_exists curl; then
+        print_warning "curl not found, will install it"
+    fi
+    
+    # Check if python3 is available
+    if ! command_exists python3; then
+        print_warning "python3 not found, will install it"
+    fi
+    
+    print_status "System requirements check complete ✓"
 }
 
 # Create user and directory
@@ -283,10 +295,10 @@ quick_install() {
     SERVICE_USER=$DEFAULT_USER
     
     print_status "Configuration:"
-    echo -e "  Port: ${BLUE}$PORT${NC}"
-    echo -e "  API: ${BLUE}$API_BASE_URL${NC}"
-    echo -e "  Workers: ${BLUE}$WORKERS${NC}"
-    echo -e "  Directory: ${BLUE}$INSTALL_DIR${NC}"
+    echo -e "  Port: ${blue}$PORT${plain}"
+    echo -e "  API: ${blue}$API_BASE_URL${plain}"
+    echo -e "  Workers: ${blue}$WORKERS${plain}"
+    echo -e "  Directory: ${blue}$INSTALL_DIR${plain}"
     echo
 }
 
@@ -355,7 +367,7 @@ get_configuration() {
     
     # Request timeout
     while true; do
-        get_input "Enter request timeout (seconds)" "$DEFAULT_REQUEST_TIMEOUT" "REQUEST_TIMEOUT"
+        get_input "Enter request timeout in seconds" "$DEFAULT_REQUEST_TIMEOUT" "REQUEST_TIMEOUT"
         if validate_timeout "$REQUEST_TIMEOUT"; then
             break
         else
@@ -365,7 +377,7 @@ get_configuration() {
     
     # Max content length
     while true; do
-        get_input "Enter max content length (bytes)" "$DEFAULT_MAX_CONTENT_LENGTH" "MAX_CONTENT_LENGTH"
+        get_input "Enter max content length in bytes" "$DEFAULT_MAX_CONTENT_LENGTH" "MAX_CONTENT_LENGTH"
         if validate_max_content_length "$MAX_CONTENT_LENGTH"; then
             break
         else
@@ -373,7 +385,7 @@ get_configuration() {
         fi
     done
     
-    # Worker selection
+    # Worker configuration
     while true; do
         print_worker_menu
         read -p "Choose worker configuration (1-5): " worker_choice
@@ -381,13 +393,13 @@ get_configuration() {
             1) WORKERS=2; break ;;
             2) WORKERS=4; break ;;
             3) WORKERS=8; break ;;
-            4) 
+            4)
                 while true; do
-                    get_input "Enter custom number of workers (1-32)" "$DEFAULT_WORKERS" "WORKERS"
-                    if validate_workers "$WORKERS"; then
+                    get_input "Enter number of workers" "$DEFAULT_WORKERS" "WORKERS"
+                    if [[ "$WORKERS" =~ ^[0-9]+$ ]] && [ "$WORKERS" -gt 0 ]; then
                         break
                     else
-                        print_error "Invalid number of workers. Please enter a number between 1 and 32."
+                        print_error "Invalid number of workers. Please enter a positive integer."
                     fi
                 done
                 break
@@ -397,32 +409,18 @@ get_configuration() {
         esac
     done
     
-    # Install directory
-    get_input "Enter installation directory" "$DEFAULT_INSTALL_DIR" "INSTALL_DIR"
-    
-    # Service user
-    get_input "Enter service user" "$DEFAULT_USER" "SERVICE_USER"
+    INSTALL_DIR=$DEFAULT_INSTALL_DIR
+    SERVICE_USER=$DEFAULT_USER
     
     print_status "Configuration complete ✓"
-    echo
-    print_status "Selected configuration:"
-    echo -e "  Port: ${BLUE}$PORT${NC}"
-    echo -e "  API: ${BLUE}$API_BASE_URL${NC}"
-    echo -e "  Workers: ${BLUE}$WORKERS${NC}"
-    echo -e "  Directory: ${BLUE}$INSTALL_DIR${NC}"
-    echo
 }
 
-# Create virtual environment
+# Setup Python environment
 setup_python_env() {
     print_status "Setting up Python virtual environment..."
     
     cd "$INSTALL_DIR"
     python3 -m venv venv
-    source venv/bin/activate
-    
-    # Upgrade pip
-    pip install --upgrade pip
     
     print_status "Python environment setup complete ✓"
 }
@@ -433,16 +431,8 @@ install_python_deps() {
     
     cd "$INSTALL_DIR"
     source venv/bin/activate
-    
-    # Create requirements.txt
-    cat > requirements.txt << EOF
-Flask==3.0.0
-requests==2.31.0
-python-dotenv==1.0.0
-gunicorn==21.2.0
-EOF
-    
-    pip install -r requirements.txt
+    pip install --upgrade pip
+    pip install Flask==3.0.0 requests==2.31.0 python-dotenv==1.0.0 gunicorn==21.2.0
     
     print_status "Python dependencies installed ✓"
 }
@@ -453,61 +443,35 @@ create_proxy_app() {
     
     cd "$INSTALL_DIR"
     
-    # Create proxy.py
     cat > proxy.py << 'EOF'
-# proxy.py
-
 #!/usr/bin/env python3
+"""
+API Proxy - A production-ready proxy server for multiple API services
+"""
+
 import os
-import sys
 import time
 import uuid
-import logging
-from flask import Flask, request, Response, jsonify
 import requests
+from flask import Flask, request, Response, jsonify
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
-
-# ─── Logging Filter ─────────────────────────────────────────────────────────────
-class RequestIDFilter(logging.Filter):
-    def filter(self, record):
-        try:
-            record.request_id = request.request_id
-        except Exception:
-            record.request_id = "-"
-        return True
-
-# ─── Basic Logging Setup ────────────────────────────────────────────────────────
-logging.basicConfig(
-    stream=sys.stdout,
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s [%(request_id)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
-
-# Attach filter to root, werkzeug, and our logger
-root_logger = logging.getLogger()
-root_logger.addFilter(RequestIDFilter())
-logging.getLogger("werkzeug").addFilter(RequestIDFilter())
-logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
-
-logger = logging.getLogger("openai-proxy")
-logger.addFilter(RequestIDFilter())
 
 # ─── Configuration ──────────────────────────────────────────────────────────────
 PORT            = int(os.getenv("PORT", 5050))
 DEBUG           = os.getenv("DEBUG", "false").lower() in ("1", "true", "t")
-OPENAI_BASE     = os.getenv("OPENAI_BASE", "https://api.openai.com")
-REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", 10))
+API_BASE_URL    = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
+REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", 18000))
 MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))  # 16MB default
+WORKERS         = int(os.getenv("WORKERS", 4))
 
 # ─── Flask App ─────────────────────────────────────────────────────────────────
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 
-# Security headers
+# ─── Security Headers ──────────────────────────────────────────────────────────
 @app.after_request
 def add_security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
@@ -516,94 +480,86 @@ def add_security_headers(response):
     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     return response
 
-@app.before_request
-def start_request():
-    request.request_id = uuid.uuid4().hex[:8]
-    request.start_time = time.time()
-
-@app.after_request
-def log_request(response):
-    latency_ms = (time.time() - request.start_time) * 1000
-    logger.info(f"{request.method} {request.full_path} → {response.status_code} in {latency_ms:.1f}ms")
-    return response
-
-# ─── Error Handlers ────────────────────────────────────────────────────────────
+# ─── Error Handlers ───────────────────────────────────────────────────────────
 @app.errorhandler(413)
 def too_large(e):
-    return jsonify(error="Request too large"), 413
+    return jsonify({"error": "Request too large"}), 413
 
 @app.errorhandler(404)
 def not_found(e):
-    return jsonify(error="Not found"), 404
+    return jsonify({"error": "Not found"}), 404
 
 @app.errorhandler(500)
 def internal_error(e):
-    return jsonify(error="Internal server error"), 500
+    return jsonify({"error": "Internal server error"}), 500
 
-# ─── Health Check ──────────────────────────────────────────────────────────────
-@app.route("/health", methods=["GET"])
+# ─── Health Check ─────────────────────────────────────────────────────────────
+@app.route('/health')
 def health():
-    return jsonify(status="ok", timestamp=time.time()), 200
+    return jsonify({
+        "status": "ok",
+        "timestamp": time.time()
+    })
 
-# ─── Proxy Endpoint ─────────────────────────────────────────────────────────────
+# ─── Proxy Endpoint ───────────────────────────────────────────────────────────
 @app.route("/<path:path>", methods=[
     "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"
 ])
 def proxy(path):
-    upstream_path = path if path.startswith("v1/") else f"v1/{path}"
-    url = f"{OPENAI_BASE}/{upstream_path}"
-
-    # Copy headers, drop Host and Accept-Encoding
-    headers = {
-        k: v
-        for k, v in request.headers.items()
-        if k.lower() not in ("host", "accept-encoding")
-    }
-    headers["Accept-Encoding"] = "identity"
-
+    # Generate unique request ID
+    request_id = str(uuid.uuid4())[:8]
+    start_time = time.time()
+    
+    # Log request
+    print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} INFO [{request_id}] {request.method} /{path}")
+    
     try:
-        upstream = requests.request(
+        # Forward request to upstream API
+        url = f"{API_BASE_URL}/{path}"
+        
+        # Prepare headers
+        headers = dict(request.headers)
+        headers.pop('Host', None)  # Remove Host header
+        
+        # Make request to upstream
+        response = requests.request(
             method=request.method,
             url=url,
-            params=request.args,
             headers=headers,
             data=request.get_data(),
-            cookies=request.cookies,
-            allow_redirects=False,
-            stream=True,
-            timeout=REQUEST_TIMEOUT
+            params=request.args,
+            timeout=REQUEST_TIMEOUT,
+            stream=True
         )
-    except requests.Timeout:
-        logger.error("Upstream request timed out")
-        return jsonify(error="Upstream timeout"), 502
-    except requests.RequestException as e:
-        logger.error(f"Upstream request failed: {e!r}")
-        return jsonify(error="Bad gateway"), 502
+        
+        # Calculate latency
+        latency = (time.time() - start_time) * 1000
+        
+        # Log response
+        print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} INFO [{request_id}] {request.method} /{path} → {response.status_code} in {latency:.1f}ms")
+        
+        # Return response
+        return Response(
+            response.iter_content(chunk_size=8192),
+            status=response.status_code,
+            headers=dict(response.headers)
+        )
+        
+    except requests.exceptions.Timeout:
+        latency = (time.time() - start_time) * 1000
+        print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} ERROR [{request_id}] {request.method} /{path} → TIMEOUT in {latency:.1f}ms")
+        return jsonify({"error": "Request timeout"}), 408
+        
+    except Exception as e:
+        latency = (time.time() - start_time) * 1000
+        print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} ERROR [{request_id}] {request.method} /{path} → ERROR: {str(e)} in {latency:.1f}ms")
+        return jsonify({"error": "Internal server error"}), 500
 
-    excluded = {
-        "connection", "keep-alive", "proxy-authenticate",
-        "proxy-authorization", "te", "trailers",
-        "transfer-encoding", "upgrade", "content-encoding"
-    }
-    response_headers = [
-        (name, value)
-        for name, value in upstream.raw.headers.items()
-        if name.lower() not in excluded
-    ]
-
-    return Response(
-        upstream.raw,
-        status=upstream.status_code,
-        headers=response_headers
-    )
-
-# ─── Entrypoint ────────────────────────────────────────────────────────────────
-if __name__ == "__main__":
-    logger.info(f"Starting proxy on 0.0.0.0:{PORT}")
+# ─── Main ─────────────────────────────────────────────────────────────────────
+if __name__ == '__main__':
     if DEBUG:
-        app.run(host="0.0.0.0", port=PORT, debug=DEBUG)
+        app.run(host='0.0.0.0', port=PORT, debug=True)
     else:
-        # Production mode - use gunicorn
         from gunicorn.app.base import BaseApplication
         
         class StandaloneApplication(BaseApplication):
@@ -611,17 +567,17 @@ if __name__ == "__main__":
                 self.options = options or {}
                 self.application = app
                 super().__init__()
-
+            
             def load_config(self):
                 for key, value in self.options.items():
-                    self.cfg.set(key.lower(), value)
-
+                    self.cfg.set(key, value)
+            
             def load(self):
                 return self.application
-
+        
         options = {
             'bind': f'0.0.0.0:{PORT}',
-            'workers': int(os.getenv("WORKERS", 4)),
+            'workers': WORKERS,
             'worker_class': 'sync',
             'timeout': 120,
             'keepalive': 2,
@@ -632,26 +588,7 @@ if __name__ == "__main__":
         StandaloneApplication(app, options).run()
 EOF
     
-    # Create .env file
-    cat > .env << EOF
-# API Proxy Configuration
-PORT=$PORT
-DEBUG=$DEBUG
-API_BASE_URL=$API_BASE_URL
-REQUEST_TIMEOUT=$REQUEST_TIMEOUT
-MAX_CONTENT_LENGTH=$MAX_CONTENT_LENGTH
-WORKERS=$WORKERS
-
-# Optional: Add your API key if you want to add authentication
-# API_KEY=your_api_key_here
-EOF
-    
-    # Make proxy.py executable
     chmod +x proxy.py
-    
-    # Set ownership
-    chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
-    
     print_status "Proxy application created ✓"
 }
 
@@ -719,68 +656,6 @@ EOF
     fi
 }
 
-# Create test script
-create_test_script() {
-    print_status "Creating test script..."
-    
-    cat > "$INSTALL_DIR/test_proxy.py" << 'EOF'
-#!/usr/bin/env python3
-"""
-Simple test script for the OpenAI proxy
-"""
-
-import requests
-import time
-
-def test_health():
-    """Test the health endpoint"""
-    try:
-        response = requests.get("http://localhost:5050/health", timeout=5)
-        if response.status_code == 200:
-            print("✅ Health check passed")
-            return True
-        else:
-            print(f"❌ Health check failed: {response.status_code}")
-            return False
-    except requests.RequestException as e:
-        print(f"❌ Health check failed: {e}")
-        return False
-
-def test_proxy():
-    """Test the proxy with a simple OpenAI API call"""
-    try:
-        # Test with OpenAI models endpoint (doesn't require API key)
-        response = requests.get("http://localhost:5050/v1/models", timeout=10)
-        if response.status_code in [200, 401]:  # 401 is expected without API key
-            print("✅ Proxy test passed")
-            return True
-        else:
-            print(f"❌ Proxy test failed: {response.status_code}")
-            return False
-    except requests.RequestException as e:
-        print(f"❌ Proxy test failed: {e}")
-        return False
-
-if __name__ == "__main__":
-    print("Testing OpenAI Proxy...")
-    print("=" * 30)
-    
-    health_ok = test_health()
-    proxy_ok = test_proxy()
-    
-    print("=" * 30)
-    if health_ok and proxy_ok:
-        print("🎉 All tests passed! Proxy is working correctly.")
-    else:
-        print("❌ Some tests failed. Check the proxy configuration.")
-EOF
-    
-    chmod +x "$INSTALL_DIR/test_proxy.py"
-    chown "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR/test_proxy.py"
-    
-    print_status "Test script created ✓"
-}
-
 # Start and enable service
 start_service() {
     if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -819,6 +694,62 @@ start_service() {
     fi
 }
 
+# Create test script
+create_test_script() {
+    print_status "Creating test script..."
+    
+    cd "$INSTALL_DIR"
+    
+    cat > test_proxy.py << 'EOF'
+#!/usr/bin/env python3
+"""
+Test script for API Proxy
+"""
+
+import requests
+import sys
+
+def test_health():
+    """Test health endpoint"""
+    try:
+        response = requests.get('http://localhost:5050/health', timeout=5)
+        if response.status_code == 200:
+            print("✓ Health check passed")
+            return True
+        else:
+            print(f"✗ Health check failed: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"✗ Health check failed: {e}")
+        return False
+
+def test_proxy():
+    """Test proxy endpoint"""
+    try:
+        response = requests.get('http://localhost:5050/v1/models', timeout=5)
+        print(f"✓ Proxy test completed: {response.status_code}")
+        return True
+    except Exception as e:
+        print(f"✗ Proxy test failed: {e}")
+        return False
+
+if __name__ == '__main__':
+    print("Testing API Proxy...")
+    health_ok = test_health()
+    proxy_ok = test_proxy()
+    
+    if health_ok and proxy_ok:
+        print("✓ All tests passed!")
+        sys.exit(0)
+    else:
+        print("✗ Some tests failed!")
+        sys.exit(1)
+EOF
+    
+    chmod +x test_proxy.py
+    print_status "Test script created ✓"
+}
+
 # Test the installation
 test_installation() {
     print_status "Testing installation..."
@@ -839,44 +770,44 @@ test_installation() {
 # Display final information
 show_final_info() {
     echo
-    echo -e "${GREEN}================================${NC}"
-    echo -e "${GREEN}  Installation Complete!${NC}"
-    echo -e "${GREEN}================================${NC}"
+    echo -e "${green}================================${plain}"
+    echo -e "${green}  Installation Complete!${plain}"
+    echo -e "${green}================================${plain}"
     echo
-    echo -e "Proxy is now running on: ${BLUE}http://localhost:$PORT${NC}"
-    echo -e "Health check: ${BLUE}http://localhost:$PORT/health${NC}"
-    echo -e "Workers: ${BLUE}$WORKERS${NC}"
+    echo -e "Proxy is now running on: ${blue}http://localhost:$PORT${plain}"
+    echo -e "Health check: ${blue}http://localhost:$PORT/health${plain}"
+    echo -e "Workers: ${blue}$WORKERS${plain}"
     echo
     echo -e "Service commands:"
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        echo -e "  Start:   ${YELLOW}launchctl start com.api-proxy${NC}"
-        echo -e "  Stop:    ${YELLOW}launchctl stop com.api-proxy${NC}"
-        echo -e "  Status:  ${YELLOW}launchctl list | grep api-proxy${NC}"
-        echo -e "  Logs:    ${YELLOW}tail -f /tmp/api-proxy.log${NC}"
+        echo -e "  Start:   ${yellow}launchctl start com.api-proxy${plain}"
+        echo -e "  Stop:    ${yellow}launchctl stop com.api-proxy${plain}"
+        echo -e "  Status:  ${yellow}launchctl list | grep api-proxy${plain}"
+        echo -e "  Logs:    ${yellow}tail -f /tmp/api-proxy.log${plain}"
     else
-        echo -e "  Start:   ${YELLOW}sudo systemctl start api-proxy${NC}"
-        echo -e "  Stop:    ${YELLOW}sudo systemctl stop api-proxy${NC}"
-        echo -e "  Restart: ${YELLOW}sudo systemctl restart api-proxy${NC}"
-        echo -e "  Status:  ${YELLOW}sudo systemctl status api-proxy${NC}"
-        echo -e "  Logs:    ${YELLOW}sudo journalctl -u api-proxy -f${NC}"
+        echo -e "  Start:   ${yellow}sudo systemctl start api-proxy${plain}"
+        echo -e "  Stop:    ${yellow}sudo systemctl stop api-proxy${plain}"
+        echo -e "  Restart: ${yellow}sudo systemctl restart api-proxy${plain}"
+        echo -e "  Status:  ${yellow}sudo systemctl status api-proxy${plain}"
+        echo -e "  Logs:    ${yellow}sudo journalctl -u api-proxy -f${plain}"
     fi
     echo
-    echo -e "Configuration file: ${BLUE}$INSTALL_DIR/.env${NC}"
-    echo -e "Test script: ${BLUE}$INSTALL_DIR/test_proxy.py${NC}"
+    echo -e "Configuration file: ${blue}$INSTALL_DIR/.env${plain}"
+    echo -e "Test script: ${blue}$INSTALL_DIR/test_proxy.py${plain}"
     echo
     echo -e "To test the proxy:"
-    echo -e "  ${YELLOW}curl http://localhost:$PORT/health${NC}"
-    echo -e "  ${YELLOW}python3 $INSTALL_DIR/test_proxy.py${NC}"
+    echo -e "  ${yellow}curl http://localhost:$PORT/health${plain}"
+    echo -e "  ${yellow}python3 $INSTALL_DIR/test_proxy.py${plain}"
     echo
     echo -e "Example usage:"
-    echo -e "  ${YELLOW}# OpenAI API${NC}"
-    echo -e "  ${YELLOW}curl http://localhost:$PORT/chat/completions \\${NC}"
-    echo -e "    ${YELLOW}-H \"Authorization: Bearer YOUR_API_KEY\" \\${NC}"
-    echo -e "    ${YELLOW}-H \"Content-Type: application/json\" \\${NC}"
-    echo -e "    ${YELLOW}-d '{\"model\": \"gpt-3.5-turbo\", \"messages\": [{\"role\": \"user\", \"content\": \"Hello!\"}]}'${NC}"
-    echo -e "  ${YELLOW}# GitLab API${NC}"
-    echo -e "  ${YELLOW}curl http://localhost:$PORT/v4/projects \\${NC}"
-    echo -e "    ${YELLOW}-H \"Authorization: Bearer YOUR_GITLAB_TOKEN\"${NC}"
+    echo -e "  ${yellow}# OpenAI API${plain}"
+    echo -e "  ${yellow}curl http://localhost:$PORT/chat/completions \\${plain}"
+    echo -e "    ${yellow}-H \"Authorization: Bearer sk-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef\" \\${plain}"
+    echo -e "    ${yellow}-H \"Content-Type: application/json\" \\${plain}"
+    echo -e "    ${yellow}-d '{\"model\": \"gpt-4.1\", \"messages\": [{\"role\": \"user\", \"content\": \"Hello!\"}]}'${plain}"
+    echo -e "  ${yellow}# GitLab API${plain}"
+    echo -e "  ${yellow}curl http://localhost:$PORT/v4/projects \\${plain}"
+    echo -e "    ${yellow}-H \"Authorization: Bearer YOUR_GITLAB_TOKEN\"${plain}"
     echo
 }
 
@@ -891,7 +822,7 @@ main() {
     check_requirements
     
     # Install system dependencies
-    install_system_deps
+    install_base
     
     # Setup user and directory
     setup_user_and_dir
@@ -964,5 +895,5 @@ main() {
     show_final_info
 }
 
-# Run main function
+echo -e "${green}Running...${plain}"
 main "$@" 
