@@ -43,11 +43,27 @@ print_header() {
 
 print_menu() {
     echo
-    echo -e "${BLUE}Installation Options:${NC}"
-    echo -e "1. ${GREEN}Quick Install${NC} (Recommended - uses defaults)"
-    echo -e "2. ${YELLOW}Custom Install${NC} (Configure all options)"
-    echo -e "3. ${BLUE}Install Dependencies Only${NC}"
-    echo -e "4. ${RED}Exit${NC}"
+    echo -e "${BLUE}================================${NC}"
+    echo -e "${BLUE}  API Proxy Installation Menu${NC}"
+    echo -e "${BLUE}================================${NC}"
+    echo
+    echo -e "${GREEN}1. Quick Install${NC} (Recommended)"
+    echo -e "   • Uses default settings"
+    echo -e "   • Port: 5050, API: OpenAI, Workers: 4"
+    echo -e "   • Perfect for most users"
+    echo
+    echo -e "${YELLOW}2. Custom Install${NC}"
+    echo -e "   • Choose port, API provider, workers"
+    echo -e "   • Configure all options interactively"
+    echo -e "   • For advanced users"
+    echo
+    echo -e "${CYAN}3. Dependencies Only${NC}"
+    echo -e "   • Install Python dependencies only"
+    echo -e "   • Manual setup required"
+    echo -e "   • For developers"
+    echo
+    echo -e "${RED}4. Exit${NC}"
+    echo -e "   • Cancel installation"
     echo
 }
 
@@ -880,44 +896,48 @@ main() {
     # Setup user and directory
     setup_user_and_dir
     
-    # Check if running in non-interactive mode (piped from curl)
+    # Show main menu (works in both interactive and non-interactive modes)
+    print_menu
     if [ ! -t 0 ]; then
-        print_status "Detected non-interactive mode, using Quick Install..."
-        quick_install
+        # Non-interactive mode: wait a moment then use Quick Install
+        echo
+        print_status "Non-interactive mode detected (curl | sudo bash)"
+        print_status "Starting Quick Install in 3 seconds..."
+        print_status "Press Ctrl+C to cancel and run interactively."
+        echo
+        sleep 3
+        menu_choice=1
     else
-        # Show main menu for interactive mode
-        while true; do
-            print_menu
-            read -p "Choose installation option (1-4): " menu_choice
-            case $menu_choice in
-                1)
-                    print_status "Starting Quick Install..."
-                    quick_install
-                    break
-                    ;;
-                2)
-                    print_status "Starting Custom Install..."
-                    get_configuration
-                    break
-                    ;;
-                3)
-                    print_status "Installing dependencies only..."
-                    setup_python_env
-                    install_python_deps
-                    print_status "Dependencies installed successfully!"
-                    print_status "You can now run: python3 proxy.py"
-                    exit 0
-                    ;;
-                4)
-                    print_status "Installation cancelled."
-                    exit 0
-                    ;;
-                *)
-                    print_error "Invalid choice. Please select 1-4."
-                    ;;
-            esac
-        done
+        # Interactive mode: get user input
+        read -p "Choose installation option (1-4): " menu_choice
     fi
+    
+    case $menu_choice in
+        1)
+            print_status "Starting Quick Install..."
+            quick_install
+            ;;
+        2)
+            print_status "Starting Custom Install..."
+            get_configuration
+            ;;
+        3)
+            print_status "Installing dependencies only..."
+            setup_python_env
+            install_python_deps
+            print_status "Dependencies installed successfully!"
+            print_status "You can now run: python3 proxy.py"
+            exit 0
+            ;;
+        4)
+            print_status "Installation cancelled."
+            exit 0
+            ;;
+        *)
+            print_error "Invalid choice. Using Quick Install..."
+            quick_install
+            ;;
+    esac
     
     # Setup Python environment
     setup_python_env
