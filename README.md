@@ -2,7 +2,7 @@
 
 A production-ready proxy server for multiple API services that adds request logging, monitoring, and security features.
 
-[![GitHub](https://img.shields.io/badge/GitHub-OpenAiProxy-blue)](https://github.com/iarmawn/OpenAiProxy)
+[![GitHub](https://img.shields.io/badge/GitHub-ApiProxy-blue)](https://github.com/iarmawn/ApiProxy)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## Features
@@ -24,12 +24,12 @@ A production-ready proxy server for multiple API services that adds request logg
 
 Install directly with curl:
 ```bash
-curl -sSL https://raw.githubusercontent.com/iarmawn/OpenAiProxy/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/iarmawn/ApiProxy/main/install.sh | sudo bash
 ```
 
 Or download and run locally:
 ```bash
-curl -sSL https://raw.githubusercontent.com/iarmawn/OpenAiProxy/main/install.sh -o install.sh
+curl -sSL https://raw.githubusercontent.com/iarmawn/ApiProxy/main/install.sh -o install.sh
 sudo bash install.sh
 ```
 
@@ -47,8 +47,8 @@ The installer will:
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/iarmawn/OpenAiProxy.git
-cd OpenAiProxy
+git clone https://github.com/iarmawn/ApiProxy.git
+cd ApiProxy
 ```
 
 2. Install dependencies:
@@ -67,28 +67,10 @@ cp .env.example .env
 python proxy.py
 ```
 
-### Manual Setup
-
-1. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-2. Configure environment variables in `.env`:
-```bash
-cp .env.example .env
-# Edit .env with your settings
-```
-
-3. Run the proxy:
-```bash
-python proxy.py
-```
-
 ## Project Structure
 
 ```
-OpenAiProxy/
+ApiProxy/
 ├── proxy.py              # Main proxy application
 ├── install.sh            # Interactive installer script
 ├── uninstall.sh          # Uninstaller script
@@ -278,8 +260,8 @@ sudo API_BASE_URL=https://your-api.com PORT=5052 python3 proxy.py
 
 ```bash
 # Clone the repository
-git clone https://github.com/iarmawn/OpenAiProxy.git
-cd OpenAiProxy
+git clone https://github.com/iarmawn/ApiProxy.git
+cd ApiProxy
 
 # Install dependencies
 pip install -r requirements.txt
@@ -395,12 +377,12 @@ curl http://localhost:5050/v1/models \
 To completely remove the proxy from your system:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/iarmawn/OpenAiProxy/main/uninstall.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/iarmawn/ApiProxy/main/uninstall.sh | sudo bash
 ```
 
 Or download and run locally:
 ```bash
-curl -sSL https://raw.githubusercontent.com/iarmawn/OpenAiProxy/main/uninstall.sh -o uninstall.sh
+curl -sSL https://raw.githubusercontent.com/iarmawn/ApiProxy/main/uninstall.sh -o uninstall.sh
 sudo bash uninstall.sh
 ```
 
