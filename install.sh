@@ -267,7 +267,7 @@ install_base() {
     
     case "${release}" in
     ubuntu | debian | armbian)
-        apt-get update && apt-get install -y -q python3-pip python3-venv curl wget
+        apt-get update && apt-get install -y -q python3-pip python3-venv python3.10-venv curl wget
         ;;
     centos | rhel | almalinux | rocky | ol)
         yum -y update && yum install -y -q python3-pip python3-venv curl wget
@@ -282,7 +282,7 @@ install_base() {
         zypper refresh && zypper -q install -y python3-pip python3-venv curl wget
         ;;
     *)
-        apt-get update && apt install -y -q python3-pip python3-venv curl wget
+        apt-get update && apt install -y -q python3-pip python3-venv python3.10-venv curl wget
         ;;
     esac
     
@@ -560,7 +560,37 @@ setup_python_env() {
     print_status "Setting up Python virtual environment..."
     
     cd "$INSTALL_DIR"
-    python3 -m venv venv
+    
+    # Try to create virtual environment
+    if ! python3 -m venv venv; then
+        print_warning "Virtual environment creation failed, trying alternative method..."
+        
+        # Try installing venv package if not available
+        if ! python3 -c "import venv" 2>/dev/null; then
+            print_status "Installing python3-venv package..."
+            case "${release}" in
+            ubuntu | debian | armbian)
+                apt-get install -y python3-venv python3.10-venv
+                ;;
+            centos | rhel | almalinux | rocky | ol)
+                yum install -y python3-venv
+                ;;
+            fedora | amzn | virtuozzo)
+                dnf install -y python3-venv
+                ;;
+            *)
+                apt-get install -y python3-venv python3.10-venv
+                ;;
+            esac
+        fi
+        
+        # Try again
+        if ! python3 -m venv venv; then
+            print_error "Failed to create virtual environment. Please install python3-venv manually:"
+            print_error "sudo apt install python3-venv python3.10-venv"
+            exit 1
+        fi
+    fi
     
     print_status "Python environment setup complete ✓"
 }
