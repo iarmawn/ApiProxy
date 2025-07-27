@@ -25,6 +25,70 @@ DEFAULT_WORKERS=4
 DEFAULT_INSTALL_DIR="/opt/api-proxy"
 DEFAULT_USER="api-proxy"
 
+# Function to clear screen
+clear_screen() {
+    clear
+}
+
+# Function to get server IP
+get_server_ip() {
+    local server_ip=$(curl -s --max-time 3 https://api.ipify.org)
+    if [ -z "$server_ip" ]; then
+        server_ip=$(curl -s --max-time 3 https://4.ident.me)
+    fi
+    if [ -z "$server_ip" ]; then
+        server_ip=$(hostname -I | awk '{print $1}')
+    fi
+    echo "$server_ip"
+}
+
+# Function to open firewall port
+open_firewall_port() {
+    local port=$1
+    print_status "Opening firewall port $port..."
+    
+    case "${release}" in
+    ubuntu | debian | armbian)
+        if command_exists ufw; then
+            ufw allow $port/tcp
+            print_status "UFW port $port opened ✓"
+        elif command_exists iptables; then
+            iptables -A INPUT -p tcp --dport $port -j ACCEPT
+            print_status "iptables port $port opened ✓"
+        fi
+        ;;
+    centos | rhel | almalinux | rocky | ol)
+        if command_exists firewall-cmd; then
+            firewall-cmd --permanent --add-port=$port/tcp
+            firewall-cmd --reload
+            print_status "firewalld port $port opened ✓"
+        elif command_exists iptables; then
+            iptables -A INPUT -p tcp --dport $port -j ACCEPT
+            print_status "iptables port $port opened ✓"
+        fi
+        ;;
+    fedora | amzn | virtuozzo)
+        if command_exists firewall-cmd; then
+            firewall-cmd --permanent --add-port=$port/tcp
+            firewall-cmd --reload
+            print_status "firewalld port $port opened ✓"
+        elif command_exists iptables; then
+            iptables -A INPUT -p tcp --dport $port -j ACCEPT
+            print_status "iptables port $port opened ✓"
+        fi
+        ;;
+    *)
+        if command_exists ufw; then
+            ufw allow $port/tcp
+            print_status "UFW port $port opened ✓"
+        elif command_exists iptables; then
+            iptables -A INPUT -p tcp --dport $port -j ACCEPT
+            print_status "iptables port $port opened ✓"
+        fi
+        ;;
+    esac
+}
+
 # Check root
 [[ $EUID -ne 0 ]] && echo -e "${red}Fatal error: ${plain}Please run this script with root privilege \n " && exit 1
 
@@ -76,6 +140,7 @@ print_header() {
 }
 
 print_menu() {
+    clear_screen
     echo
     echo -e "${blue}================================${plain}"
     echo -e "${blue}  API Proxy Installation Menu${plain}"
@@ -102,6 +167,7 @@ print_menu() {
 }
 
 print_api_menu() {
+    clear_screen
     echo
     echo -e "${blue}API Provider Selection:${plain}"
     echo -e "1. ${green}OpenAI API${plain} (ChatGPT, GPT-4, etc.)"
@@ -112,6 +178,7 @@ print_api_menu() {
 }
 
 print_port_menu() {
+    clear_screen
     echo
     echo -e "${blue}Port Selection:${plain}"
     echo -e "1. ${green}Port 5050${plain} (Default)"
@@ -123,6 +190,7 @@ print_port_menu() {
 }
 
 print_worker_menu() {
+    clear_screen
     echo
     echo -e "${blue}Worker Configuration:${plain}"
     echo -e "1. ${green}2 Workers${plain} (Development/Low traffic)"
@@ -307,6 +375,35 @@ get_configuration() {
     print_status "Configuring the proxy..."
     echo
     
+    # Check for existing installations
+    local existing_ports=()
+    local existing_dirs=()
+    
+    # Find existing api-proxy services
+    if [[ "$OSTYPE" != "darwin"* ]]; then
+        for service in /etc/systemd/system/api-proxy*.service; do
+            if [[ -f "$service" ]]; then
+                local port=$(grep -o 'PORT=[0-9]*' "$service" | cut -d'=' -f2)
+                local dir=$(grep -o 'WorkingDirectory=[^ ]*' "$service" | cut -d'=' -f2)
+                if [[ -n "$port" ]]; then
+                    existing_ports+=("$port")
+                fi
+                if [[ -n "$dir" ]]; then
+                    existing_dirs+=("$dir")
+                fi
+            fi
+        done
+    fi
+    
+    # Show existing installations
+    if [[ ${#existing_ports[@]} -gt 0 ]]; then
+        echo -e "${yellow}Existing API Proxy installations found:${plain}"
+        for i in "${!existing_ports[@]}"; do
+            echo -e "  Port: ${blue}${existing_ports[$i]}${plain}, Directory: ${blue}${existing_dirs[$i]}${plain}"
+        done
+        echo
+    fi
+    
     # Port selection
     while true; do
         print_port_menu
@@ -319,6 +416,11 @@ get_configuration() {
                 while true; do
                     get_input "Enter custom port number" "$DEFAULT_PORT" "PORT"
                     if validate_port "$PORT"; then
+                        # Check if port is already in use
+                        if [[ " ${existing_ports[@]} " =~ " ${PORT} " ]]; then
+                            print_error "Port $PORT is already in use by another proxy. Please choose a different port."
+                            continue
+                        fi
                         break
                     else
                         print_error "Invalid port number. Please enter a number between 1 and 65535."
@@ -329,6 +431,12 @@ get_configuration() {
             5) continue ;;
             *) print_error "Invalid choice. Please select 1-5." ;;
         esac
+        
+        # Check if selected port is already in use
+        if [[ " ${existing_ports[@]} " =~ " ${PORT} " ]]; then
+            print_error "Port $PORT is already in use by another proxy. Please choose a different port."
+            continue
+        fi
     done
     
     # Debug mode
@@ -409,7 +517,20 @@ get_configuration() {
         esac
     done
     
-    INSTALL_DIR=$DEFAULT_INSTALL_DIR
+    # Generate unique installation directory
+    if [[ $PORT -eq 5050 ]]; then
+        INSTALL_DIR="/opt/api-proxy"
+    else
+        INSTALL_DIR="/opt/api-proxy-$PORT"
+    fi
+    
+    # Generate unique service name
+    if [[ $PORT -eq 5050 ]]; then
+        SERVICE_NAME="api-proxy"
+    else
+        SERVICE_NAME="api-proxy-$PORT"
+    fi
+    
     SERVICE_USER=$DEFAULT_USER
     
     print_status "Configuration complete ✓"
@@ -631,9 +752,9 @@ EOF
         # Linux - create systemd service
         print_status "Creating systemd service..."
         
-        cat > /etc/systemd/system/api-proxy.service << EOF
+        cat > /etc/systemd/system/$SERVICE_NAME.service << EOF
 [Unit]
-Description=API Proxy
+Description=API Proxy (Port $PORT)
 After=network.target
 
 [Service]
@@ -642,6 +763,12 @@ User=$SERVICE_USER
 Group=$SERVICE_USER
 WorkingDirectory=$INSTALL_DIR
 Environment=PATH=$INSTALL_DIR/venv/bin
+Environment=PORT=$PORT
+Environment=API_BASE_URL=$API_BASE_URL
+Environment=REQUEST_TIMEOUT=$REQUEST_TIMEOUT
+Environment=MAX_CONTENT_LENGTH=$MAX_CONTENT_LENGTH
+Environment=WORKERS=$WORKERS
+Environment=DEBUG=$DEBUG
 ExecStart=$INSTALL_DIR/venv/bin/python $INSTALL_DIR/proxy.py
 Restart=always
 RestartSec=10
@@ -677,18 +804,18 @@ start_service() {
         # Linux - start systemd service
         print_status "Starting and enabling service..."
         
-        systemctl enable api-proxy
-        systemctl start api-proxy
+        systemctl enable $SERVICE_NAME
+        systemctl start $SERVICE_NAME
         
         # Wait a moment for service to start
         sleep 3
         
         # Check if service is running
-        if systemctl is-active --quiet api-proxy; then
+        if systemctl is-active --quiet $SERVICE_NAME; then
             print_status "Service started successfully ✓"
         else
             print_error "Failed to start service"
-            systemctl status api-proxy
+            systemctl status $SERVICE_NAME
             exit 1
         fi
     fi
@@ -769,13 +896,17 @@ test_installation() {
 
 # Display final information
 show_final_info() {
+    local server_ip=$(get_server_ip)
+    
     echo
     echo -e "${green}================================${plain}"
     echo -e "${green}  Installation Complete!${plain}"
     echo -e "${green}================================${plain}"
     echo
-    echo -e "Proxy is now running on: ${blue}http://localhost:$PORT${plain}"
-    echo -e "Health check: ${blue}http://localhost:$PORT/health${plain}"
+    echo -e "Proxy is now running on:"
+    echo -e "  Local:  ${blue}http://localhost:$PORT${plain}"
+    echo -e "  Public: ${blue}http://$server_ip:$PORT${plain}"
+    echo -e "Health check: ${blue}http://$server_ip:$PORT/health${plain}"
     echo -e "Workers: ${blue}$WORKERS${plain}"
     echo
     echo -e "Service commands:"
@@ -785,28 +916,28 @@ show_final_info() {
         echo -e "  Status:  ${yellow}launchctl list | grep api-proxy${plain}"
         echo -e "  Logs:    ${yellow}tail -f /tmp/api-proxy.log${plain}"
     else
-        echo -e "  Start:   ${yellow}sudo systemctl start api-proxy${plain}"
-        echo -e "  Stop:    ${yellow}sudo systemctl stop api-proxy${plain}"
-        echo -e "  Restart: ${yellow}sudo systemctl restart api-proxy${plain}"
-        echo -e "  Status:  ${yellow}sudo systemctl status api-proxy${plain}"
-        echo -e "  Logs:    ${yellow}sudo journalctl -u api-proxy -f${plain}"
+        echo -e "  Start:   ${yellow}sudo systemctl start $SERVICE_NAME${plain}"
+        echo -e "  Stop:    ${yellow}sudo systemctl stop $SERVICE_NAME${plain}"
+        echo -e "  Restart: ${yellow}sudo systemctl restart $SERVICE_NAME${plain}"
+        echo -e "  Status:  ${yellow}sudo systemctl status $SERVICE_NAME${plain}"
+        echo -e "  Logs:    ${yellow}sudo journalctl -u $SERVICE_NAME -f${plain}"
     fi
     echo
     echo -e "Configuration file: ${blue}$INSTALL_DIR/.env${plain}"
     echo -e "Test script: ${blue}$INSTALL_DIR/test_proxy.py${plain}"
     echo
     echo -e "To test the proxy:"
-    echo -e "  ${yellow}curl http://localhost:$PORT/health${plain}"
+    echo -e "  ${yellow}curl http://$server_ip:$PORT/health${plain}"
     echo -e "  ${yellow}python3 $INSTALL_DIR/test_proxy.py${plain}"
     echo
     echo -e "Example usage:"
     echo -e "  ${yellow}# OpenAI API${plain}"
-    echo -e "  ${yellow}curl http://localhost:$PORT/chat/completions \\${plain}"
+    echo -e "  ${yellow}curl http://$server_ip:$PORT/chat/completions \\${plain}"
     echo -e "    ${yellow}-H \"Authorization: Bearer sk-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef\" \\${plain}"
     echo -e "    ${yellow}-H \"Content-Type: application/json\" \\${plain}"
     echo -e "    ${yellow}-d '{\"model\": \"gpt-4.1\", \"messages\": [{\"role\": \"user\", \"content\": \"Hello!\"}]}'${plain}"
     echo -e "  ${yellow}# GitLab API${plain}"
-    echo -e "  ${yellow}curl http://localhost:$PORT/v4/projects \\${plain}"
+    echo -e "  ${yellow}curl http://$server_ip:$PORT/v4/projects \\${plain}"
     echo -e "    ${yellow}-H \"Authorization: Bearer YOUR_GITLAB_TOKEN\"${plain}"
     echo
 }
@@ -884,6 +1015,9 @@ main() {
     
     # Create test script
     create_test_script
+    
+    # Open firewall port
+    open_firewall_port $PORT
     
     # Start service
     start_service
