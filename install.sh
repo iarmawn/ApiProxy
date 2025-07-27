@@ -362,6 +362,9 @@ quick_install() {
     INSTALL_DIR=$DEFAULT_INSTALL_DIR
     SERVICE_USER=$DEFAULT_USER
     
+    # Set service name for default port
+    SERVICE_NAME="api-proxy"
+    
     print_status "Configuration:"
     echo -e "  Port: ${blue}$PORT${plain}"
     echo -e "  API: ${blue}$API_BASE_URL${plain}"
