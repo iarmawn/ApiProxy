@@ -244,8 +244,10 @@ validate_url() {
 # Function to validate timeout
 validate_timeout() {
     local timeout=$1
-    if [[ "$timeout" =~ ^[0-9]+(\.[0-9]+)?$ ]] && (( $(echo "$timeout > 0" | bc -l) )); then
-        return 0
+    if [[ "$timeout" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+        # Use awk for numeric comparison to avoid dependency on bc
+        awk -v t="$timeout" 'BEGIN { exit (t>0) ? 0 : 1 }'
+        return $?
     else
         return 1
     fi
